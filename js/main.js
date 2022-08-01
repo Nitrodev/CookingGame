@@ -7,6 +7,8 @@ const ELTS = {
   'food': $('#tabs').children[2],
 };
 
+let events = new EventTarget();
+
 let then = performance.now();
 
 let money = 0;
@@ -20,7 +22,7 @@ let factory = {};
 // All recipes
 let food = {};
 
-// Everything is stored here
+let maxStorage = {};
 let storage = {};
 
 /**
@@ -50,24 +52,26 @@ function update() {
   const delta = (now - then) / 1000;
 
   for (const ing of farm) {
+    if(!ing.active) continue; 
     if (!ing.matured) {
-      
+
       let data = DATA.farm.find(i => i.id === ing.id);
 
       ing.timeSince += delta;
 
-      ELTS['farm'].dispatchEvent(new CustomEvent('ingredient tick', {
+      events.dispatchEvent(new CustomEvent('ingredient tick', {
         detail: ing
       }));
 
       if (ing.timeSince >= data.time) {
         ing.matured = true;
-        ELTS['farm'].dispatchEvent(new CustomEvent('ingredient matured', {
+        events.dispatchEvent(new CustomEvent('ingredient matured', {
           detail: ing
         }));
       }
 
     }
+    
 
   }
 
@@ -84,13 +88,13 @@ function setup() {
         id: ing.id,
         timeSince: 0,
         matured: false,
+        active: true,
         element: document.createElement('div'),
       };
 
-      createIngElement(ingredient);
-
-      farm.push(ingredient);
-      storage[ingredient.id] = 0;
+      events.dispatchEvent(new CustomEvent('ingredient unlocked', {
+        detail: ingredient
+      }));
     }
   });
 
@@ -115,7 +119,15 @@ ELTS['tab-btns'].addEventListener('click', (e) => {
   }
 });
 
-ELTS['farm'].addEventListener('ingredient tick', (e) => {
+events.addEventListener('ingredient unlocked', (e) => {
+  const ing = e.detail;
+  createIngElement(ing);
+  farm.push(ing);
+  storage[ing.id] = 0;
+  maxStorage[ing.id] = 10;
+});
+
+events.addEventListener('ingredient tick', (e) => {
   const ing = e.detail;
   const data = DATA.farm.find(i => i.id === ing.id);
 
@@ -125,8 +137,10 @@ ELTS['farm'].addEventListener('ingredient tick', (e) => {
   $('.ing-progress', ing.element).value = ing.timeSince;
 });
 
-ELTS['farm'].addEventListener('ingredient matured', (e) => {
+events.addEventListener('ingredient matured', (e) => {
   const ing = e.detail;
+  ing.active = false;
+
   $('.harvest-btn', ing.element).disabled = false;
 });
 
@@ -142,6 +156,8 @@ ELTS['farm'].addEventListener('click', (e) => {
       $('.ing-qty', e.target.parentElement).innerHTML = storage[ing.id];
       $('.ing-progress', e.target.parentElement).value = 0;
       $('.ing-timeUntil', e.target.parentElement).innerHTML = formatTime(DATA.farm.find(i => i.id === ing.id).time);
+    
+      setTimeout(() => ing.active = true, 1000);
     }
   }
 });
